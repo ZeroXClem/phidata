@@ -4,7 +4,7 @@ from typing import Optional, List, Iterator, Dict, Any, Mapping, Union
 
 from phi.llm.base import LLM
 from phi.llm.message import Message
-from phi.llm.ollama.utils import extract_tool_calls
+from phi.llm.ollama.utils import extract_tool_calls, MessageToolCallExtractionResult
 from phi.tools.function import FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer
@@ -105,11 +105,17 @@ class Ollama(LLM):
         # This is triggered when the function call limit is reached.
         self.format = ""
 
-    def response(self, messages: List[Message]) -> str:
+    def response(self, messages: List[Message], current_user_query: Optional[str] = None) -> str:
         logger.debug("---------- Ollama Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
             m.log()
+
+        if current_user_query is None:
+            for m in reversed(messages):
+                if m.role == "user" and isinstance(m.content, str):
+                    current_user_query = m.content
+                    break
 
         response_timer = Timer()
         response_timer.start()
@@ -134,31 +140,33 @@ class Ollama(LLM):
         try:
             if response_content is not None:
                 _tool_call_content = response_content.strip()
-                assistant_tool_calls = extract_tool_calls(_tool_call_content)
+                tool_calls_result: MessageToolCallExtractionResult = extract_tool_calls(_tool_call_content)
 
-                if assistant_tool_calls.invalid_json_format:
-                    assistant_message.tool_call_error = True
+                # it is a tool call?
+                if tool_calls_result.tool_calls is None and not tool_calls_result.invalid_json_format:
+                    if tool_calls_result.invalid_json_format:
+                        assistant_message.tool_call_error = True
 
-                if assistant_tool_calls.tool_calls is not None:
-                    # Build tool calls
-                    tool_calls: List[Dict[str, Any]] = []
-                    logger.debug(f"Building tool calls from {assistant_tool_calls}")
-                    for tool_call in assistant_tool_calls.tool_calls:
-                        tool_call_name = tool_call.get("name")
-                        tool_call_args = tool_call.get("arguments")
-                        _function_def = {"name": tool_call_name}
-                        if tool_call_args is not None:
-                            _function_def["arguments"] = json.dumps(tool_call_args)
-                        tool_calls.append(
-                            {
-                                "type": "function",
-                                "function": _function_def,
-                            }
-                        )
+                    if tool_calls_result.tool_calls is not None:
+                        # Build tool calls
+                        tool_calls: List[Dict[str, Any]] = []
+                        logger.debug(f"Building tool calls from {tool_calls_result}")
+                        for tool_call in tool_calls_result.tool_calls:
+                            tool_call_name = tool_call.get("name")
+                            tool_call_args = tool_call.get("arguments")
+                            _function_def = {"name": tool_call_name}
+                            if tool_call_args is not None:
+                                _function_def["arguments"] = json.dumps(tool_call_args)
+                            tool_calls.append(
+                                {
+                                    "type": "function",
+                                    "function": _function_def,
+                                }
+                            )
 
-                    # Add tool calls to assistant message
-                    assistant_message.tool_calls = tool_calls
-                    assistant_message.role = "assistant"
+                        # Add tool calls to assistant message
+                        assistant_message.tool_calls = tool_calls
+                        assistant_message.role = "assistant"
         except Exception:
             logger.warning(f"Could not parse tool calls from response: {response_content}")
             assistant_message.tool_call_error = True
@@ -194,7 +202,7 @@ class Ollama(LLM):
             messages = self.add_tool_call_error_message(messages)
 
             # -*- Yield new response using results of tool calls
-            final_response += self.response(messages=messages)
+            final_response += self.response(messages=messages, current_user_query=current_user_query)
             return final_response
 
         elif assistant_message.tool_calls is not None and self.run_tools:
@@ -222,7 +230,7 @@ class Ollama(LLM):
 
             # This case rarely happens but it should be handled
             if len(function_calls_to_run) != len(function_call_results):
-                return final_response + self.response(messages=messages)
+                return final_response + self.response(messages=messages, current_user_query=current_user_query)
 
             # Add results of the function calls to the messages
             elif len(function_call_results) > 0:
@@ -232,14 +240,14 @@ class Ollama(LLM):
                     if any(item.tool_call_error for item in function_call_results):
                         messages = self.add_tool_call_error_message(messages)
                     else:
-                        messages = self.add_original_user_message(messages)
+                        messages = self.add_original_user_message(messages, current_user_query)
 
             # Deactivate tool calls by turning off JSON mode after 1 tool call
             if self.deactivate_tools_after_use:
                 self.deactivate_function_calls()
 
             # -*- Yield new response using results of tool calls
-            final_response += self.response(messages=messages)
+            final_response += self.response(messages=messages, current_user_query=current_user_query)
             return final_response
 
         logger.debug("---------- Ollama Response End ----------")
@@ -250,11 +258,17 @@ class Ollama(LLM):
 
         return "Something went wrong, please try again."
 
-    def response_stream(self, messages: List[Message]) -> Iterator[str]:
+    def response_stream(self, messages: List[Message], current_user_query: Optional[str] = None) -> Iterator[str]:
         logger.debug("---------- Ollama Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
             m.log()
+
+        original_user_message_content = None
+        for m in reversed(messages):
+            if m.role == "user":
+                original_user_message_content = m.content
+                break
 
         assistant_message_content = ""
         response_is_tool_call = False
@@ -333,30 +347,32 @@ class Ollama(LLM):
         try:
             if response_is_tool_call and assistant_message_content != "":
                 _tool_call_content = assistant_message_content.strip()
-                assistant_tool_calls = extract_tool_calls(_tool_call_content)
+                tool_calls_result: MessageToolCallExtractionResult = extract_tool_calls(_tool_call_content)
 
-                if assistant_tool_calls.invalid_json_format:
-                    assistant_message.tool_call_error = True
+                # it is a tool call?
+                if tool_calls_result.tool_calls is None and not tool_calls_result.invalid_json_format:
+                    if tool_calls_result.invalid_json_format:
+                        assistant_message.tool_call_error = True
 
-                if not assistant_message.tool_call_error and assistant_tool_calls.tool_calls is not None:
-                    # Build tool calls
-                    tool_calls: List[Dict[str, Any]] = []
-                    logger.debug(f"Building tool calls from {assistant_tool_calls.tool_calls}")
-                    for tool_call in assistant_tool_calls.tool_calls:
-                        tool_call_name = tool_call.get("name")
-                        tool_call_args = tool_call.get("arguments")
-                        _function_def = {"name": tool_call_name}
-                        if tool_call_args is not None:
-                            _function_def["arguments"] = json.dumps(tool_call_args)
-                        tool_calls.append(
-                            {
-                                "type": "function",
-                                "function": _function_def,
-                            }
-                        )
+                    if not assistant_message.tool_call_error and tool_calls_result.tool_calls is not None:
+                        # Build tool calls
+                        tool_calls: List[Dict[str, Any]] = []
+                        logger.debug(f"Building tool calls from {tool_calls_result.tool_calls}")
+                        for tool_call in tool_calls_result.tool_calls:
+                            tool_call_name = tool_call.get("name")
+                            tool_call_args = tool_call.get("arguments")
+                            _function_def = {"name": tool_call_name}
+                            if tool_call_args is not None:
+                                _function_def["arguments"] = json.dumps(tool_call_args)
+                            tool_calls.append(
+                                {
+                                    "type": "function",
+                                    "function": _function_def,
+                                }
+                            )
 
-                    # Add tool calls to assistant message
-                    assistant_message.tool_calls = tool_calls
+                        # Add tool calls to assistant message
+                        assistant_message.tool_calls = tool_calls
         except Exception:
             logger.warning(f"Could not parse tool calls from response: {assistant_message_content}")
             assistant_message.tool_call_error = True
@@ -403,7 +419,7 @@ class Ollama(LLM):
             messages = self.add_tool_call_error_message(messages)
 
             # -*- Yield new response using results of tool calls
-            yield from self.response_stream(messages=messages)
+            yield from self.response_stream(messages=messages, current_user_query=current_user_query)
 
         elif assistant_message.tool_calls is not None and self.run_tools:
             function_calls_to_run: List[FunctionCall] = []
@@ -441,32 +457,32 @@ class Ollama(LLM):
                     if any(item.tool_call_error for item in function_call_results):
                         messages = self.add_tool_call_error_message(messages)
                     else:
-                        messages = self.add_original_user_message(messages)
+                        # Ensure original_user_message_content is a string or None
+                        user_message = (
+                            original_user_message_content if isinstance(original_user_message_content, str) else None
+                        )
+                        messages = self.add_original_user_message(messages, user_message)
 
             # Deactivate tool calls by turning off JSON mode after 1 tool call
             if self.deactivate_tools_after_use:
                 self.deactivate_function_calls()
 
             # -*- Yield new response using results of tool calls
-            yield from self.response_stream(messages=messages)
+            yield from self.response_stream(messages=messages, current_user_query=current_user_query)
 
         logger.debug("---------- Ollama Response End ----------")
 
-    def add_original_user_message(self, messages: List[Message]) -> List[Message]:
+    def add_original_user_message(
+        self, messages: List[Message], current_user_query: Optional[str] = None
+    ) -> List[Message]:
         # Add the original user message to the messages to remind the LLM of the original task
-        original_user_message_content = None
-        for m in messages:
-            if m.role == "user":
-                original_user_message_content = m.content
-                break
-
-        if original_user_message_content is not None:
+        if current_user_query is not None:
             _content = (
                 "Using the results of the tools above, respond to the following message. "
                 "If the user explicitly requests raw data or specific formats like JSON, provide it as requested. "
                 "Otherwise, use the tool results to provide a clear and relevant answer without "
                 "returning the raw results directly:"
-                f"\n\n<user_message>\n{original_user_message_content}\n</user_message>"
+                f"\n\n<user_message>\n{current_user_query}\n</user_message>"
             )
 
             messages.append(Message(role="user", content=_content))
