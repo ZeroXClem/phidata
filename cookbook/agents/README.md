@@ -1,3 +1,63 @@
+# Universal CLI for Web Search
+
+This project provides a universal Command Line Interface (CLI) for web searches using the Phi framework and DuckDuckGo search engine.
+
+## Setup
+
+1. Install the required packages:
+   ```
+   pip install phi-framework
+   ```
+
+2. Set up your OpenAI API key as an environment variable:
+   ```
+   export OPENAI_API_KEY='your-api-key-here'
+   ```
+
+## Usage
+
+Run the CLI using:
+
+```
+python universal_cli.py
+```
+
+Enter your queries when prompted. The program will display the response and automatically save it to a Markdown file.
+
+To exit the program, type 'quit' when prompted for a query.
+
+## Features
+
+- Uses GPT-4 for processing queries
+- Integrates DuckDuckGo for web searches
+- Automatically saves responses to Markdown files
+- Continuous query loop until user chooses to quit
+# Advanced Research Assistant
+
+This project includes an advanced research assistant with CLI commands, steerability, and long-term query support.
+
+## Installation
+
+1. Clone this repository
+2. Install the required packages:
+   ```
+   pip install phi-assistant openai yfinance duckduckgo-search argparse
+   ```
+
+## Usage
+
+Run the advanced research assistant from the command line:
+
+```
+python advanced_research_assistant.py "Your research query here" --steer "Optional steering direction"
+```
+
+Example:
+```
+python advanced_research_assistant.py "Latest developments in AI" --steer "Focus on applications in healthcare"
+```
+
+The assistant will use its tools (YFinance and DuckDuckGo) to research the query and provide a comprehensive response. The conversation history is maintained for context in follow-up queries.
 # Building Agents with gpt-4o
 
 This cookbook shows how to build agents with gpt-4o

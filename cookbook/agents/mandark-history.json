@@ -1,0 +1,173 @@
+[
+  {
+    "filename": "advanced_research_assistant.py",
+    "originalContent": "",
+    "edits": [
+      {
+        "explain": "Create a new file for a more advanced research assistant with CLI commands, steerability, and long-term query support.",
+        "filename": "advanced_research_assistant.py",
+        "change": {
+          "type": "addition",
+          "atLine": 1
+        },
+        "code": "import argparse\nfrom phi.assistant import Assistant\nfrom phi.llm.openai import OpenAIChat\nfrom phi.tools.yfinance import YFinanceTools\nfrom phi.tools.duckduckgo import DuckDuckGo\nfrom phi.memory import ConversationMemory\n\nclass AdvancedResearchAssistant:\n    def __init__(self):\n        self.assistant = Assistant(\n            llm=OpenAIChat(model=\"gpt-4\"),\n            tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True),\n                   DuckDuckGo()],\n            show_tool_calls=True,\n            memory=ConversationMemory()\n        )\n\n    def research(self, query, steer=None):\n        if steer:\n            query = f\"{query} Focus on: {steer}\"\n        return self.assistant.chat(query)\n\n    def run_cli(self):\n        parser = argparse.ArgumentParser(description=\"Advanced Research Assistant\")\n        parser.add_argument(\"query\", help=\"Research query\")\n        parser.add_argument(\"--steer\", help=\"Steer the research in a specific direction\")\n        args = parser.parse_args()\n\n        response = self.research(args.query, args.steer)\n        print(response)\n\ndef main():\n    assistant = AdvancedResearchAssistant()\n    assistant.run_cli()\n\nif __name__ == \"__main__\":\n    main()",
+        "newPackages": [
+          "argparse"
+        ]
+      },
+      {
+        "explain": "To use SQLite instead of vectors from numpy, we need to modify the AdvancedResearchAssistant class to use a SQLite database for storing conversation memory. We'll replace the ConversationMemory with a custom SQLiteMemory class.",
+        "filename": "advanced_research_assistant.py",
+        "change": {
+          "type": "replacement",
+          "fromLineNumber": 1,
+          "toLineNumber": 37
+        },
+        "code": "import argparse\nimport sqlite3\nfrom phi.assistant import Assistant\nfrom phi.llm.openai import OpenAIChat\nfrom phi.tools.yfinance import YFinanceTools\nfrom phi.tools.duckduckgo import DuckDuckGo\n\nclass SQLiteMemory:\n    def __init__(self, db_name='conversation_memory.db'):\n        self.conn = sqlite3.connect(db_name)\n        self.cursor = self.conn.cursor()\n        self.cursor.execute('''\n            CREATE TABLE IF NOT EXISTS conversations\n            (id INTEGER PRIMARY KEY AUTOINCREMENT,\n             role TEXT,\n             content TEXT,\n             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)\n        ''')\n        self.conn.commit()\n\n    def add(self, role, content):\n        self.cursor.execute('INSERT INTO conversations (role, content) VALUES (?, ?)', (role, content))\n        self.conn.commit()\n\n    def get(self, limit=10):\n        self.cursor.execute('SELECT role, content FROM conversations ORDER BY timestamp DESC LIMIT ?', (limit,))\n        return [{'role': role, 'content': content} for role, content in self.cursor.fetchall()[::-1]]\n\nclass AdvancedResearchAssistant:\n    def __init__(self):\n        self.memory = SQLiteMemory()\n        self.assistant = Assistant(\n            llm=OpenAIChat(model=\"gpt-4\"),\n            tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True),\n                   DuckDuckGo()],\n            show_tool_calls=True\n        )\n\n    def research(self, query, steer=None):\n        if steer:\n            query = f\"{query} Focus on: {steer}\"\n        response = self.assistant.chat(query)\n        self.memory.add('human', query)\n        self.memory.add('assistant', response)\n        return response\n\n    def run_cli(self):\n        parser = argparse.ArgumentParser(description=\"Advanced Research Assistant\")\n        parser.add_argument(\"query\", help=\"Research query\")\n        parser.add_argument(\"--steer\", help=\"Steer the research in a specific direction\")\n        args = parser.parse_args()\n\n        response = self.research(args.query, args.steer)\n        print(response)\n\ndef main():\n    assistant = AdvancedResearchAssistant()\n    assistant.run_cli()\n\nif __name__ == \"__main__\":\n    main()",
+        "newPackages": [
+          "sqlite3"
+        ]
+      },
+      {
+        "explain": "Modify the research method to return a tuple containing both the query and response, which allows for better tracking of the conversation flow.",
+        "filename": "advanced_research_assistant.py",
+        "change": {
+          "type": "replacement",
+          "fromLineNumber": 39,
+          "toLineNumber": 45
+        },
+        "code": "    def research(self, query, steer=None):\n        if steer:\n            query = f\"{query} Focus on: {steer}\"\n        response = self.assistant.chat(query)\n        self.memory.add('human', query)\n        self.memory.add('assistant', response)\n        return query, response"
+      },
+      {
+        "explain": "Update the run_cli method to handle the new return value from the research method and print both query and response.",
+        "filename": "advanced_research_assistant.py",
+        "change": {
+          "type": "replacement",
+          "fromLineNumber": 53,
+          "toLineNumber": 54
+        },
+        "code": "        query, response = self.research(args.query, args.steer)\n        print(f\"Query: {query}\\n\\nResponse: {response}\")"
+      }
+    ]
+  },
+  {
+    "filename": "README.md",
+    "originalContent": "# Building Agents with gpt-4o\n\nThis cookbook shows how to build agents with gpt-4o\n\n> Note: Fork and clone this repository if needed\n\n### 1. Create a virtual environment\n\n```shell\npython3 -m venv ~/.venvs/aienv\nsource ~/.venvs/aienv/bin/activate\n```\n\n### 2. Install libraries\n\n```shell\npip install -r cookbook/agents/requirements.txt\n```\n\n### 3. Export credentials\n\n- We use gpt-4o as the llm, so export your OpenAI API Key\n\n```shell\nexport OPENAI_API_KEY=***\n```\n\n- To use Exa for research, export your EXA_API_KEY (get it from [here](https://dashboard.exa.ai/api-keys))\n\n```shell\nexport EXA_API_KEY=xxx\n```\n\n### 4. Run PgVector\n\nWe use PgVector to provide long-term memory and knowledge to the LLM OS.\nPlease install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) and run PgVector using either the helper script or the `docker run` command.\n\n- Run using a helper script\n\n```shell\n./cookbook/run_pgvector.sh\n```\n\n- OR run using the docker run command\n\n```shell\ndocker run -d \\\n  -e POSTGRES_DB=ai \\\n  -e POSTGRES_USER=ai \\\n  -e POSTGRES_PASSWORD=ai \\\n  -e PGDATA=/var/lib/postgresql/data/pgdata \\\n  -v pgvolume:/var/lib/postgresql/data \\\n  -p 5532:5432 \\\n  --name pgvector \\\n  phidata/pgvector:16\n```\n\n### 5. Run the App\n\n```shell\nstreamlit run cookbook/agents/app.py\n```\n\n- Open [localhost:8501](http://localhost:8501) to view your LLM OS.\n\n### 6. Message on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions\n\n### 7. Star ⭐️ the project if you like it.\n\n### Share with your friends: https://phidata.link/agents\n",
+    "edits": [
+      {
+        "explain": "Update the README.md file to include instructions for the new advanced research assistant.",
+        "filename": "README.md",
+        "change": {
+          "type": "addition",
+          "atLine": 1
+        },
+        "code": "# Advanced Research Assistant\n\nThis project includes an advanced research assistant with CLI commands, steerability, and long-term query support.\n\n## Installation\n\n1. Clone this repository\n2. Install the required packages:\n   ```\n   pip install phi-assistant openai yfinance duckduckgo-search argparse\n   ```\n\n## Usage\n\nRun the advanced research assistant from the command line:\n\n```\npython advanced_research_assistant.py \"Your research query here\" --steer \"Optional steering direction\"\n```\n\nExample:\n```\npython advanced_research_assistant.py \"Latest developments in AI\" --steer \"Focus on applications in healthcare\"\n```\n\nThe assistant will use its tools (YFinance and DuckDuckGo) to research the query and provide a comprehensive response. The conversation history is maintained for context in follow-up queries."
+      },
+      {
+        "explain": "Update the README.md file to include instructions on how to use the new universal CLI.",
+        "filename": "README.md",
+        "change": {
+          "type": "addition",
+          "atLine": 1
+        },
+        "code": "# Universal CLI for Web Search\n\nThis project provides a universal Command Line Interface (CLI) for web searches using the Phi framework and DuckDuckGo search engine.\n\n## Setup\n\n1. Install the required packages:\n   ```\n   pip install phi-framework\n   ```\n\n2. Set up your OpenAI API key as an environment variable:\n   ```\n   export OPENAI_API_KEY='your-api-key-here'\n   ```\n\n## Usage\n\nRun the CLI using:\n\n```\npython universal_cli.py\n```\n\nEnter your queries when prompted. The program will display the response and automatically save it to a Markdown file.\n\nTo exit the program, type 'quit' when prompted for a query.\n\n## Features\n\n- Uses GPT-4 for processing queries\n- Integrates DuckDuckGo for web searches\n- Automatically saves responses to Markdown files\n- Continuous query loop until user chooses to quit",
+        "newPackages": []
+      }
+    ]
+  },
+  {
+    "filename": "improved_web_search.py",
+    "originalContent": "",
+    "edits": [
+      {
+        "explain": "Create a new file named 'improved_web_search.py' with the improved version of the code, incorporating error handling, better structure, and documentation.",
+        "filename": "improved_web_search.py",
+        "change": {
+          "type": "addition",
+          "atLine": 1
+        },
+        "code": "\"\"\"\nThis script initializes an AI assistant using the phi library and OpenAI's GPT-4 model.\nThe assistant is equipped with DuckDuckGo search capabilities and is set to print its responses in markdown format.\n\"\"\"\n\nfrom phi.assistant import Assistant\nfrom phi.llm.openai import OpenAIChat\nfrom phi.tools.duckduckgo import DuckDuckGo\n\ndef initialize_assistant():\n    \"\"\"Initialize and return an AI assistant with web search capabilities.\"\"\"\n    return Assistant(llm=OpenAIChat(model=\"gpt-4o\"), tools=[DuckDuckGo()], show_tool_calls=True)\n\ndef query_assistant(assistant, query):\n    \"\"\"Send a query to the assistant and print the response.\"\"\"\n    try:\n        assistant.print_response(query, markdown=True)\n    except Exception as e:\n        print(f\"An error occurred while querying the assistant: {str(e)}\")\n\nif __name__ == \"__main__\":\n    try:\n        assistant = initialize_assistant()\n        query_assistant(assistant, \"Share 3 news stories from France\")\n    except Exception as e:\n        print(f\"An error occurred during initialization: {str(e)}\")",
+        "newPackages": []
+      }
+    ]
+  },
+  {
+    "filename": "universal_cli.py",
+    "originalContent": "",
+    "edits": [
+      {
+        "explain": "Create a new file named 'universal_cli.py' to implement a universal CLI for user queries with automatic Markdown saving and iteration.",
+        "filename": "universal_cli.py",
+        "change": {
+          "type": "addition",
+          "atLine": 1
+        },
+        "code": "import sys\nimport os\nfrom phi.assistant import Assistant\nfrom phi.llm.openai import OpenAIChat\nfrom phi.tools.duckduckgo import DuckDuckGo\n\ndef save_to_markdown(query, response):\n    filename = f\"{query[:30].replace(' ', '_')}.md\"\n    with open(filename, 'w') as f:\n        f.write(f\"# Query: {query}\\n\\n{response}\")\n    print(f\"Response saved to {filename}\")\n\ndef main():\n    assistant = Assistant(llm=OpenAIChat(model=\"gpt-4\"), tools=[DuckDuckGo()], show_tool_calls=True)\n    \n    while True:\n        query = input(\"Enter your query (or 'quit' to exit): \")\n        if query.lower() == 'quit':\n            break\n        \n        response = assistant.run(query)\n        print(\"Response:\")\n        print(response)\n        \n        save_to_markdown(query, response)\n        \n        print(\"\\n---\\n\")\n\nif __name__ == \"__main__\":\n    main()",
+        "newPackages": []
+      },
+      {
+        "explain": "We should add error handling for the OpenAI API key to ensure it's properly set.",
+        "filename": "universal_cli.py",
+        "change": {
+          "type": "addition",
+          "atLine": 5
+        },
+        "code": "import os\n\n# Check if the OpenAI API key is set\nif 'OPENAI_API_KEY' not in os.environ:\n    raise ValueError(\"Please set the OPENAI_API_KEY environment variable.\")\n"
+      },
+      {
+        "explain": "We need to update the save_to_markdown function to handle potential errors when writing to a file.",
+        "filename": "universal_cli.py",
+        "change": {
+          "type": "replacement",
+          "fromLineNumber": 7,
+          "toLineNumber": 11
+        },
+        "code": "def save_to_markdown(query, response):\n    filename = f\"{query[:30].replace(' ', '_')}.md\"\n    try:\n        with open(filename, 'w') as f:\n            f.write(f\"# Query: {query}\\n\\n{response}\")\n        print(f\"Response saved to {filename}\")\n    except IOError as e:\n        print(f\"Error saving response to file: {str(e)}\")"
+      },
+      {
+        "explain": "The current implementation doesn't properly handle the DuckDuckGo search tool. We need to modify the assistant initialization to include the DuckDuckGo tool and update the run method to use it correctly.",
+        "filename": "universal_cli.py",
+        "change": {
+          "type": "replacement",
+          "fromLineNumber": 13,
+          "toLineNumber": 27
+        },
+        "code": "def main():\n    assistant = Assistant(llm=OpenAIChat(model=\"gpt-4\"), tools=[DuckDuckGo()], show_tool_calls=True)\n    \n    while True:\n        query = input(\"Enter your query (or 'quit' to exit): \")\n        if query.lower() == 'quit':\n            break\n        \n        try:\n            response = assistant.run(query)\n            print(\"Response:\")\n            print(response)\n            \n            save_to_markdown(query, response)\n        except Exception as e:\n            print(f\"An error occurred: {str(e)}\")\n        \n        print(\"\\n---\\n\")"
+      },
+      {
+        "explain": "We need to import the DuckDuckGo tool which was missing in the original implementation.",
+        "filename": "universal_cli.py",
+        "change": {
+          "type": "addition",
+          "atLine": 3
+        },
+        "code": "from phi.tools.duckduckgo import DuckDuckGo",
+        "newPackages": []
+      },
+      {
+        "explain": "The current implementation has some issues, including duplicate code and potential errors. We'll refactor the main function to improve readability, remove duplicates, and add error handling.",
+        "filename": "universal_cli.py",
+        "change": {
+          "type": "replacement",
+          "fromLineNumber": 13,
+          "toLineNumber": 42
+        },
+        "code": "def main():\n    assistant = Assistant(llm=OpenAIChat(model=\"gpt-4\"), tools=[DuckDuckGo()], show_tool_calls=True)\n    \n    while True:\n        query = input(\"Enter your query (or 'quit' to exit): \").strip()\n        if query.lower() == 'quit':\n            break\n        \n        try:\n            response = assistant.run(query)\n            print(\"Response:\")\n            print(response)\n            \n            save_to_markdown(query, response)\n        except Exception as e:\n            print(f\"An error occurred: {str(e)}\")\n        \n        print(\"\\n---\\n\")\n\nif __name__ == \"__main__\":\n    main()",
+        "newPackages": []
+      },
+      {
+        "explain": "Refactor the universal_cli.py script to improve code organization, error handling, and add type hints. This change will make the code more maintainable and easier to understand.",
+        "filename": "universal_cli.py",
+        "change": {
+          "type": "replacement",
+          "fromLineNumber": 1,
+          "toLineNumber": 34
+        },
+        "code": "import sys\nfrom typing import Optional\n\nfrom phi.tools.duckduckgo import DuckDuckGo\nfrom phi.assistant import Assistant\nfrom phi.llm.openai import OpenAIChat\n\ndef save_to_markdown(query: str, response: str) -> None:\n    filename = f\"{query[:30].replace(' ', '_')}.md\"\n    try:\n        with open(filename, 'w') as f:\n            f.write(f\"# Query: {query}\\n\\n{response}\")\n        print(f\"Response saved to {filename}\")\n    except IOError as e:\n        print(f\"Error saving response to file: {e}\")\n\ndef get_assistant() -> Assistant:\n    return Assistant(llm=OpenAIChat(model=\"gpt-4\"), tools=[DuckDuckGo()], show_tool_calls=True)\n\ndef process_query(assistant: Assistant, query: str) -> Optional[str]:\n    try:\n        response = assistant.run(query)\n        print(\"Response:\")\n        print(response)\n        save_to_markdown(query, response)\n        return response\n    except Exception as e:\n        print(f\"An error occurred while processing the query: {str(e)}\")\n        return None\n\ndef main() -> None:\n    assistant = get_assistant()\n    \n    while True:\n        query = input(\"Enter your query (or 'quit' to exit): \").strip()\n        if query.lower() == 'quit':\n            break\n        \n        process_query(assistant, query)\n        print(\"\\n---\\n\")\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except KeyboardInterrupt:\n        print(\"\\nProgram interrupted. Exiting...\")\n        sys.exit(0)\n    except Exception as e:\n        print(f\"An unexpected error occurred: {str(e)}\")\n        sys.exit(1)",
+        "newPackages": [
+          "typing"
+        ]
+      }
+    ]
+  }
+]

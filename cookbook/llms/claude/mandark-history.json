@@ -1,0 +1,103 @@
+[
+  {
+    "filename": "cli.py",
+    "originalContent": "",
+    "edits": [
+      {
+        "explain": "Create a new file named 'cli.py' to implement a command-line interface for the existing functionality. This will allow users to interact with the assistant through the command line and make multiple queries in a loop.",
+        "filename": "cli.py",
+        "change": {
+          "type": "addition",
+          "atLine": 1
+        },
+        "code": "import argparse\nfrom phi.assistant import Assistant\nfrom phi.tools.exa import ExaTools\nfrom phi.tools.website import WebsiteTools\nfrom phi.llm.anthropic import Claude\n\ndef main():\n    parser = argparse.ArgumentParser(description='Chromatic Homotopy Theory Assistant')\n    parser.add_argument('--query', type=str, help='Initial query to process')\n    args = parser.parse_args()\n\n    assistant = Assistant(llm=Claude(), tools=[ExaTools(), WebsiteTools()], show_tool_calls=True)\n\n    if args.query:\n        process_query(assistant, args.query)\n\n    while True:\n        user_input = input(\"Enter your query (or 'quit' to exit): \")\n        if user_input.lower() == 'quit':\n            break\n        process_query(assistant, user_input)\n\ndef process_query(assistant, query):\n    assistant.print_response(\n        query,\n        markdown=True\n    )\n\nif __name__ == \"__main__\":\n    main()",
+        "newPackages": [
+          "argparse"
+        ]
+      }
+    ]
+  },
+  {
+    "filename": "run_stock_research_cron.sh",
+    "originalContent": "",
+    "edits": [
+      {
+        "explain": "Create a new bash script for a cron job to run the stock research automation. This script will activate the conda environment and execute the Python script.",
+        "filename": "run_stock_research_cron.sh",
+        "change": {
+          "type": "addition",
+          "atLine": 1
+        },
+        "code": "#!/bin/bash\n\n# Activate conda\nsource ~/miniconda3/etc/profile.d/conda.sh\n\n# Activate the phidata environment\nconda activate phidata\n\n# Navigate to the script directory\ncd /path/to/your/script/directory\n\n# Run the stock research automation script\npython stock_research_automation.py\n\n# Deactivate the conda environment\nconda deactivate",
+        "newPackages": []
+      },
+      {
+        "explain": "Update the python script path in run_stock_research_cron.sh to the new location",
+        "filename": "run_stock_research_cron.sh",
+        "change": {
+          "type": "replacement",
+          "fromLineNumber": 10,
+          "toLineNumber": 13
+        },
+        "code": "# Navigate to the script directory\ncd /home/btw/github.com/ZeroXClem/phidata/cookbook/llms/claude\n\n# Run the stock research automation script\npython stock_research_automation.py"
+      }
+    ]
+  },
+  {
+    "filename": "run_stock_research.sh",
+    "originalContent": "#!/bin/bash\necho ##active_line2##\n\necho ##active_line3##\n# Activate the phidata conda environment\necho ##active_line4##\nconda init\necho ##active_line5##\nconda activate phidata\necho ##active_line6##\n\necho ##active_line7##\n# Run the stock research automation script\necho ##active_line8##\npython stock_research_automation.py\n",
+    "edits": [
+      {
+        "explain": "Update the existing run_stock_research.sh script to remove conda activation, as it's not necessary for manual execution and might cause issues in a non-interactive shell.",
+        "filename": "run_stock_research.sh",
+        "change": {
+          "type": "replacement",
+          "fromLineNumber": 1,
+          "toLineNumber": 16
+        },
+        "code": "#!/bin/bash\n\n# Run the stock research automation script\npython stock_research_automation.py",
+        "newPackages": []
+      },
+      {
+        "explain": "Update the python script path in run_stock_research.sh to the new location",
+        "filename": "run_stock_research.sh",
+        "change": {
+          "type": "replacement",
+          "fromLineNumber": 4,
+          "toLineNumber": 4
+        },
+        "code": "# Run the stock research automation script\npython /home/btw/github.com/ZeroXClem/phidata/cookbook/llms/claude/stock_research_automation.py"
+      }
+    ]
+  },
+  {
+    "filename": "add_to_cron.sh",
+    "originalContent": "",
+    "edits": [
+      {
+        "explain": "Create a new bash script to add any file to cron",
+        "filename": "add_to_cron.sh",
+        "change": {
+          "type": "addition",
+          "atLine": 1
+        },
+        "code": "#!/bin/bash\n\nif [ $# -ne 2 ]; then\n    echo \"Usage: $0 <cron_schedule> <script_path>\"\n    exit 1\n fi\n\ncron_schedule=$1\nscript_path=$2\n\nif [ ! -f \"$script_path\" ]; then\n    echo \"Error: Script file does not exist.\"\n    exit 1\nfi\n\n(crontab -l 2>/dev/null; echo \"$cron_schedule $script_path\") | crontab -\n\necho \"Added to crontab: $cron_schedule $script_path\""
+      }
+    ]
+  },
+  {
+    "filename": "README.md",
+    "originalContent": "# Anthropic Claude\n\n[Models overview](https://docs.anthropic.com/claude/docs/models-overview)\n\n> Note: Fork and clone this repository if needed\n\n### 1. Create and activate a virtual environment\n\n```shell\npython3 -m venv ~/.venvs/aienv\nsource ~/.venvs/aienv/bin/activate\n```\n\n### 2. Set your `ANTHROPIC_API_KEY`\n\n```shell\nexport ANTHROPIC_API_KEY=xxx\n```\n\n### 3. Install libraries\n\n```shell\npip install -U anthropic duckduckgo-search duckdb yfinance exa_py phidata\n```\n\n### 4. Run Assistant\n\n- stream on\n\n```shell\npython cookbook/llms/claude/assistant.py\n```\n\n- stream off\n\n```shell\npython cookbook/llms/claude/assistant_stream_off.py\n```\n\n### 5. Run Assistant with Tools\n\n- YFinance\n\n```shell\npython cookbook/llms/claude/finance.py\n```\n\n- Data Analyst\n\n```shell\npython cookbook/llms/claude/data_analyst.py\n```\n\n- Exa Search\n\n```shell\npython cookbook/llms/claude/exa_search.py\n```\n\n### 6. Run Assistant with Structured output\n\n```shell\npython cookbook/llms/claude/structured_output.py\n```\n",
+    "edits": [
+      {
+        "explain": "Add instructions to add the stock research script to crontab",
+        "filename": "README.md",
+        "change": {
+          "type": "addition",
+          "atLine": 1
+        },
+        "code": "# Adding Stock Research to Crontab\n\nTo run the stock research automation script daily at 9 AM, follow these steps:\n\n1. Make the cron script executable:\n   ```\n   chmod +x run_stock_research_cron.sh\n   ```\n\n2. Add the script to crontab using our custom tool:\n   ```\n   ./add_to_cron.sh \"0 9 * * *\" \"/full/path/to/run_stock_research_cron.sh\"\n   ```\n\nThis will run the script every day at 9 AM. Adjust the cron schedule as needed.\n\nAlternatively, you can manually edit the crontab:\n\n1. Open the crontab editor:\n   ```\n   crontab -e\n   ```\n\n2. Add the following line:\n   ```\n   0 9 * * * /full/path/to/run_stock_research_cron.sh\n   ```\n\n3. Save and exit the editor.\n\nMake sure to replace \"/full/path/to/\" with the actual path to your script."
+      }
+    ]
+  }
+]

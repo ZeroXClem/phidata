@@ -23,7 +23,7 @@ class MovieScripts(BaseModel):
 
 # Define the Assistant
 movie_assistant = Assistant(
-    llm=OpenAIChat(model="gpt-4-turbo"),
+    llm=OpenAIChat(model="gpt-4o"),
     description="You help people write movie ideas. For every theme, provide 3 different scripts",
     output_model=MovieScripts,
 )

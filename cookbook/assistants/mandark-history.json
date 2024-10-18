@@ -1,0 +1,20 @@
+[
+  {
+    "filename": "streamlit_app.py",
+    "originalContent": "",
+    "edits": [
+      {
+        "explain": "Create a new file for the Streamlit app. This file will contain the main Streamlit application code.",
+        "filename": "streamlit_app.py",
+        "change": {
+          "type": "addition",
+          "atLine": 1
+        },
+        "code": "import streamlit as st\nfrom phi.assistant import Assistant\nfrom phi.llm.openai import OpenAIChat\nfrom phi.tools.duckduckgo import DuckDuckGo\n\nst.title(\"News from France Poem Generator\")\n\nassistant = Assistant(\n    llm=OpenAIChat(model=\"gpt-4\"),\n    tools=[DuckDuckGo()],\n    show_tool_calls=True,\n    markdown=True,\n)\n\nuser_input = st.text_input(\"Enter a topic for news from France:\")\n\nif st.button(\"Generate Poem\"):\n    if user_input:\n        with st.spinner(\"Generating poem...\"):\n            response = assistant.run(f\"Search for news from France about {user_input} and write a short poem about it.\")\n        st.markdown(response)\n    else:\n        st.warning(\"Please enter a topic.\")",
+        "newPackages": [
+          "streamlit"
+        ]
+      }
+    ]
+  }
+]
